@@ -165,3 +165,25 @@ func GetVolumeStats(name, baseDir string) (*VolumeStats, error) {
 
 	return stats, nil
 }
+
+func GetAllVolumes(baseDir string) ([]*VolumeStats, error) {
+	files, err := os.ReadDir(baseDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read base directory: %v", err)
+	}
+
+	var volumes []*VolumeStats
+	for _, file := range files {
+		if file.IsDir() {
+			stats, err := GetVolumeStats(file.Name(), baseDir)
+			if err != nil {
+				// Log the error but continue, as some directories might not be volumes
+				log.Printf("failed to get stats for %s: %v", file.Name(), err)
+				continue
+			}
+			volumes = append(volumes, stats)
+		}
+	}
+
+	return volumes, nil
+}

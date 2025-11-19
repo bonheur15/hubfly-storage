@@ -112,3 +112,20 @@ func GetVolumeStatsHandler(baseDir string) http.HandlerFunc {
 		json.NewEncoder(w).Encode(stats)
 	}
 }
+
+func GetVolumesHandler(baseDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Received request to get all volumes")
+
+		volumes, err := volume.GetAllVolumes(baseDir)
+		if err != nil {
+			handleError(w, fmt.Sprintf("Failed to get volumes: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("Volumes retrieved successfully!")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(volumes)
+	}
+}

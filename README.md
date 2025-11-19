@@ -74,6 +74,26 @@ The service listens on port `8203`.
       }
       ```
 
+### Get All Volumes
+- **Endpoint:** `/volumes`
+- **Method:** `GET`
+- **Description:** Gets all volumes.
+- **Success Response:**
+    - **Code:** 200 OK
+    - **Content:**
+      ```json
+      [
+        {
+          "name": "my-test-volume",
+          "size": "4.9G",
+          "used": "8.0K",
+          "available": "4.7G",
+          "usage": "1%",
+          "mount_path": "/var/lib/docker/volumes/my-test-volume/_data"
+        }
+      ]
+      ```
+
 ## Building and Running
 
 ### Dependencies
@@ -108,6 +128,11 @@ curl -X POST -H "Content-Type: application/json" -d '{
 curl -X POST -H "Content-Type: application/json" -d '{
   "Name": "my-test-volume"
 }' http://localhost:8203/volume-stats
+```
+
+### Get all volumes
+```bash
+curl http://localhost:8203/volumes
 ```
 
 ### Delete a volume
