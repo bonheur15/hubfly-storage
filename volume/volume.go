@@ -91,6 +91,11 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 		return "", fmt.Errorf("mount failed: %v", err)
 	}
 
+	log.Printf("Setting permissions for data directory: %s to 777", dataPath)
+	if err := runCommand("sudo", "chmod", "-R", "777", dataPath); err != nil {
+		return "", fmt.Errorf("chmod failed: %v", err)
+	}
+
 	log.Printf("Registering docker volume: %s", name)
 
 	dockerArgs := []string{
