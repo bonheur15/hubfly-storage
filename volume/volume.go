@@ -156,14 +156,26 @@ func GetVolumeStats(name, baseDir string) (*VolumeStats, error) {
 
 	stats := &VolumeStats{
 		Name:      name,
-		Size:      fields[1],
-		Used:      fields[2],
-		Available: fields[3],
+		Size:      formatSize(fields[1]),
+		Used:      formatSize(fields[2]),
+		Available: formatSize(fields[3]),
 		Usage:     fields[4],
 		MountPath: fields[5],
 	}
 
 	return stats, nil
+}
+
+func formatSize(size string) string {
+	if len(size) < 1 {
+		return size
+	}
+	lastChar := size[len(size)-1]
+	if (lastChar >= 'A' && lastChar <= 'Z') || (lastChar >= 'a' && lastChar <= 'z') {
+		value := size[:len(size)-1]
+		return value + " " + string(lastChar) + "B"
+	}
+	return size
 }
 
 func GetAllVolumes(baseDir string) ([]*VolumeStats, error) {

@@ -66,9 +66,9 @@ The service listens on port `8203`.
       ```json
       {
         "name": "my-test-volume",
-        "size": "4.9G",
-        "used": "8.0K",
-        "available": "4.7G",
+        "size": "4.9 GB",
+        "used": "8.0 KB",
+        "available": "4.7 GB",
         "usage": "1%",
         "mount_path": "/var/lib/docker/volumes/my-test-volume/_data"
       }
@@ -85,9 +85,9 @@ The service listens on port `8203`.
       [
         {
           "name": "my-test-volume",
-          "size": "4.9G",
-          "used": "8.0K",
-          "available": "4.7G",
+          "size": "4.9 GB",
+          "used": "8.0 KB",
+          "available": "4.7 GB",
           "usage": "1%",
           "mount_path": "/var/lib/docker/volumes/my-test-volume/_data"
         }
