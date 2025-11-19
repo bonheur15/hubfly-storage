@@ -50,12 +50,36 @@ The service listens on port `8203`.
     - **Code:** 200 OK
     - **Content:** `{"status": "success", "name": "my-test-volume"}`
 
+### Get Volume Stats
+- **Endpoint:** `/volume-stats`
+- **Method:** `POST`
+- **Description:** Gets statistics for a Docker volume.
+- **Payload:**
+    ```json
+    {
+      "Name": "my-test-volume"
+    }
+    ```
+- **Success Response:**
+    - **Code:** 200 OK
+    - **Content:**
+      ```json
+      {
+        "name": "my-test-volume",
+        "size": "4.9G",
+        "used": "8.0K",
+        "available": "4.7G",
+        "usage": "1%",
+        "mount_path": "/var/lib/docker/volumes/my-test-volume/_data"
+      }
+      ```
+
 ## Building and Running
 
 ### Dependencies
 - Go 1.17 or later
 - Docker
-- `fallocate`, `mkfs.ext4`, `mount`, `umount` command-line utilities
+- `fallocate`, `mkfs.ext4`, `mount`, `umount`, `df` command-line utilities
 - `sudo` access is required for the service to execute system commands.
 
 ### Build
@@ -83,9 +107,16 @@ curl -X POST -H "Content-Type: application/json" -d '{
 }' http://localhost:8203/create-volume
 ```
 
-### Delete a volume
+### Get volume stats
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{
+  "Name": "my-test-volume"
+}' http://localhost:8203/volume-stats
+```
+
+### Delete a volume
+```bash
+curl -X POST -H "Content-Tye": "application/json" -d '{
   "Name": "my-test-volume"
 }' http://localhost:8203/delete-volume
 ```
