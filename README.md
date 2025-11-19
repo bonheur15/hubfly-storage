@@ -75,7 +75,7 @@ The service listens on port `8203`.
       ```
 
 ### Get All Volumes
-- **Endpoint:** `/volumes`
+- **Endpoint:** `/dev/volumes`
 - **Method:** `GET`
 - **Description:** Gets all volumes.
 - **Success Response:**
@@ -132,7 +132,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
 
 ### Get all volumes
 ```bash
-curl http://localhost:8203/volumes
+curl http://localhost:8203/dev/volumes
 ```
 
 ### Delete a volume
