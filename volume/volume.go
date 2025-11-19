@@ -38,7 +38,28 @@ func runCommandWithOutput(name string, args ...string) (string, error) {
 	return string(output), nil
 }
 
+// volumeExists checks if a docker volume with the given name already exists.
+func volumeExists(name string) (bool, error) {
+	output, err := runCommandWithOutput("docker", "volume", "ls", "-q", "-f", "name="+name)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if volume exists: %v", err)
+	}
+	// The output will be the volume name if it exists, or empty if it doesn't.
+	// We trim space and check if the output matches the name.
+	exists := strings.TrimSpace(output) == name
+	return exists, nil
+}
+
 func CreateVolume(name, size, baseDir string) (string, error) {
+	// Check if the volume already exists
+	exists, err := volumeExists(name)
+	if err != nil {
+		return "", fmt.Errorf("failed to check for existing volume: %v", err)
+	}
+	if exists {
+		return "", fmt.Errorf("volume '%s' already exists", name)
+	}
+
 	volumePath := filepath.Join(baseDir, name)
 	dataPath := filepath.Join(volumePath, "_data")
 	absDataPath, err := filepath.Abs(dataPath)
