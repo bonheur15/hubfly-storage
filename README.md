@@ -3,7 +3,7 @@
 This project is a Go-based web service that provides an HTTP API for dynamically creating and managing Docker volumes. It listens for requests to create, delete and check the health of the service.
 
 ## Project Structure
-- `main.go`: The main application entry point, responsible for setting up the web server and routing.
+- `cmd/hubfly-storage/main.go`: The main application entry point, responsible for setting up the web server and routing.
 - `handlers/`: Contains the HTTP handlers for the different API endpoints.
 - `volume/`: Contains the logic for creating and deleting volumes.
 
@@ -85,13 +85,13 @@ The service listens on port `8203`.
 ### Build
 To build the application, run the following command:
 ```bash
-go build -o volume-manager .
+go build -o hubfly-storage ./cmd/hubfly-storage
 ```
 
 ### Run
 To run the server, execute the built binary with sudo privileges:
 ```bash
-sudo ./volume-manager
+sudo ./hubfly-storage
 ```
 The server will start and listen on port `8203`.
 
@@ -116,7 +116,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
 
 ### Delete a volume
 ```bash
-curl -X POST -H "Content-Tye": "application/json" -d '{
+curl -X POST -H "Content-Type: application/json" -d '{
   "Name": "my-test-volume"
 }' http://localhost:8203/delete-volume
 ```
