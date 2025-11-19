@@ -6,7 +6,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
+
+type VolumeStats struct {
+	Name      string `json:"name"`
+	Size      string `json:"size"`
+	Used      string `json:"used"`
+	Available string `json:"available"`
+	Usage     string `json:"usage"`
+	MountPath string `json:"mount_path"`
+}
 
 func runCommand(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
@@ -16,6 +26,16 @@ func runCommand(name string, args ...string) error {
 		return fmt.Errorf("%v: %s", err, output)
 	}
 	return nil
+}
+
+func runCommandWithOutput(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	output, err := cmd.CombinedOutput()
+	log.Printf("Command: %s %v\nOutput: %s", name, args, output)
+	if err != nil {
+		return string(output), fmt.Errorf("%v: %s", err, output)
+	}
+	return string(output), nil
 }
 
 func CreateVolume(name, size, baseDir string) (string, error) {
@@ -85,4 +105,35 @@ func DeleteVolume(name, baseDir string) error {
 	}
 
 	return nil
+}
+
+func GetVolumeStats(name, baseDir string) (*VolumeStats, error) {
+	volumePath := filepath.Join(baseDir, name)
+	dataPath := filepath.Join(volumePath, "_data")
+
+	output, err := runCommandWithOutput("df", "-h", dataPath)
+	if err != nil {
+		return nil, fmt.Errorf("df command failed: %v", err)
+	}
+
+	lines := strings.Split(output, "\n")
+	if len(lines) < 2 {
+		return nil, fmt.Errorf("invalid df output")
+	}
+
+	fields := strings.Fields(lines[1])
+	if len(fields) < 6 {
+		return nil, fmt.Errorf("invalid df output fields")
+	}
+
+	stats := &VolumeStats{
+		Name:      name,
+		Size:      fields[1],
+		Used:      fields[2],
+		Available: fields[3],
+		Usage:     fields[4],
+		MountPath: fields[5],
+	}
+
+	return stats, nil
 }

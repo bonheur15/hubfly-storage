@@ -17,6 +17,7 @@ func main() {
 	http.HandleFunc("/create-volume", handlers.CreateVolumeHandler(baseDir))
 	http.HandleFunc("/delete-volume", handlers.DeleteVolumeHandler(baseDir))
 	http.HandleFunc("/health", handlers.HealthCheckHandler())
+	http.HandleFunc("/volume-stats", handlers.GetVolumeStatsHandler(baseDir))
 
 	log.Println("🚀 Server running on port 8203...")
 	if err := http.ListenAndServe(":8203", nil); err != nil {

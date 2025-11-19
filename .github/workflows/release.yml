@@ -1,0 +1,32 @@
+name: Release Go Binary
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Build
+        run: go build -o hubfly-builder ./cmd/hubfly-builder
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          files: |
+            ./hubfly-builder
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}

@@ -88,3 +88,27 @@ func HealthCheckHandler() http.HandlerFunc {
 		})
 	}
 }
+
+func GetVolumeStatsHandler(baseDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var payload DockerVolumePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			handleError(w, fmt.Sprintf("Invalid JSON payload: %v", err), http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+
+		log.Printf("Received request for volume stats: %s", payload.Name)
+
+		stats, err := volume.GetVolumeStats(payload.Name, baseDir)
+		if err != nil {
+			handleError(w, fmt.Sprintf("Failed to get volume stats: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("Volume stats for %s retrieved successfully!", payload.Name)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(stats)
+	}
+}
