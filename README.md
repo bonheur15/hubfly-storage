@@ -82,17 +82,13 @@ The service listens on port `8203`.
 - `fallocate`, `mkfs.ext4`, `mount`, `umount`, `df` command-line utilities
 - `sudo` access is required for the service to execute system commands.
 
-### Build
-To build the application, run the following command:
+### Running the application
+To build and run the application, you can use the `run.sh` script. This script will first build the application and then run it with sudo privileges.
+
 ```bash
-go build -o hubfly-storage ./cmd/hubfly-storage
+./run.sh
 ```
 
-### Run
-To run the server, execute the built binary with sudo privileges:
-```bash
-sudo ./hubfly-storage
-```
 The server will start and listen on port `8203`.
 
 ## Example Usage
