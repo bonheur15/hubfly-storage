@@ -37,7 +37,7 @@ func CreateVolumeHandler(baseDir string) http.HandlerFunc {
 			size = "1G"
 		}
 
-		volName, err := volume.CreateVolume(payload.Name, size, baseDir)
+		volName, err := volume.CreateVolume(payload.Name, size, baseDir, payload.Labels)
 		if err != nil {
 			handleError(w, fmt.Sprintf("Failed to create volume: %v", err), http.StatusInternalServerError)
 			return

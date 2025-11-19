@@ -50,7 +50,7 @@ func volumeExists(name string) (bool, error) {
 	return exists, nil
 }
 
-func CreateVolume(name, size, baseDir string) (string, error) {
+func CreateVolume(name, size, baseDir string, labels map[string]string) (string, error) {
 	// Check if the volume already exists
 	exists, err := volumeExists(name)
 	if err != nil {
@@ -92,13 +92,20 @@ func CreateVolume(name, size, baseDir string) (string, error) {
 	}
 
 	log.Printf("Registering docker volume: %s", name)
-	if err := runCommand(
+
+	dockerArgs := []string{
 		"docker", "volume", "create",
 		"--name", name,
 		"--opt", fmt.Sprintf("device=%s", absDataPath),
 		"--opt", "type=none",
 		"--opt", "o=bind",
-	); err != nil {
+	}
+
+	for key, value := range labels {
+		dockerArgs = append(dockerArgs, "--label", fmt.Sprintf("%s=%s", key, value))
+	}
+
+	if err := runCommand(dockerArgs[0], dockerArgs[1:]...); err != nil {
 		return "", fmt.Errorf("docker volume create failed: %v", err)
 	}
 
