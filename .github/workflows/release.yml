@@ -27,6 +27,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
           files: |
-            ./hubfly-builder
+            ./hubfly-storage
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
