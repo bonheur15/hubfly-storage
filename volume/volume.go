@@ -96,6 +96,13 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 		return "", fmt.Errorf("chmod failed: %v", err)
 	}
 
+	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+		log.Printf("Setting ownership for data directory: %s to %s", dataPath, sudoUser)
+		if err := runCommand("sudo", "chown", "-R", fmt.Sprintf("%s:%s", sudoUser, sudoUser), dataPath); err != nil {
+			return "", fmt.Errorf("chown failed: %v", err)
+		}
+	}
+
 	log.Printf("Registering docker volume: %s", name)
 
 	dockerArgs := []string{
