@@ -91,8 +91,8 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 		return "", fmt.Errorf("mount failed: %v", err)
 	}
 
-	log.Printf("Setting permissions for data directory: %s to 777", dataPath)
-	if err := runCommand("sudo", "chmod", "-R", "777", dataPath); err != nil {
+	log.Printf("Setting permissions for data directory: %s to 777", absDataPath)
+	if err := runCommand("sudo", "chmod", "-R", "777", absDataPath); err != nil {
 		return "", fmt.Errorf("chmod failed: %v", err)
 	}
 
@@ -101,7 +101,7 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 		if err := runCommand("sudo", "chown", "-R", fmt.Sprintf("%s:%s", sudoUser, sudoUser), dataPath); err != nil {
 			return "", fmt.Errorf("chown failed: %v", err)
 		}
-	}
+	} // for dev
 
 	log.Printf("Registering docker volume: %s", name)
 
