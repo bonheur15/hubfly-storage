@@ -94,6 +94,21 @@ The service listens on port `8203`.
       ]
       ```
 
+### Create URL Volume
+- **Endpoint:** `/url-volume/create`
+- **Method:** `POST`
+- **Description:** Creates a temporary user in File Browser and returns a temporary login URL.
+- **Payload:**
+  ```json
+  {
+    "name": "my-test-volume"
+  }
+  ```
+- **Success Response:**
+    - **Code:** 200 OK
+    - **Content:** `{"url": "http://localhost:8080/login?ott=..."}`
+
+
 ## Building and Running
 
 ### Dependencies
