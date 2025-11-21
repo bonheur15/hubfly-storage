@@ -102,9 +102,6 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 			return "", fmt.Errorf("chown failed: %v", err)
 		}
 	} // for dev
-
-	restartFilegatorContainers()
-
 	log.Printf("Registering docker volume: %s", name)
 
 	dockerArgs := []string{
@@ -124,25 +121,6 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 	}
 
 	return name, nil
-}
-
-func restartFilegatorContainers() {
-	log.Println("Attempting to restart filegator containers...")
-	output, err := runCommandWithOutput("docker", "ps", "-a", "--format", "{{.Names}}")
-	if err != nil {
-		log.Printf("Error listing containers: %v", err)
-		return
-	}
-
-	containerNames := strings.Split(strings.TrimSpace(output), "\n")
-	for _, name := range containerNames {
-		if name == "filegator" || strings.HasPrefix(name, "filegator-") {
-			log.Printf("Restarting container: %s", name)
-			if err := runCommand("docker", "restart", name); err != nil {
-				log.Printf("Failed to restart container %s: %v", name, err)
-			}
-		}
-	}
 }
 
 func DeleteVolume(name, baseDir string) error {
