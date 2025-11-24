@@ -91,6 +91,13 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 		return "", fmt.Errorf("mount failed: %v", err)
 	}
 
+	lostAndFoundPath := filepath.Join(dataPath, "lost+found")
+	log.Printf("Removing lost+found directory: %s", lostAndFoundPath)
+	if err := runCommand("sudo", "rm", "-rf", lostAndFoundPath); err != nil {
+		// Log as a warning instead of returning an error
+		log.Printf("warning: failed to remove lost+found: %v", err)
+	}
+
 	log.Printf("Setting permissions for data directory: %s to 777", absDataPath)
 	if err := runCommand("sudo", "chmod", "-R", "777", absDataPath); err != nil {
 		return "", fmt.Errorf("chmod failed: %v", err)

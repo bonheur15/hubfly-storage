@@ -9,6 +9,13 @@ This project is a Go-based web service that provides an HTTP API for dynamically
 
 The service listens on port `8203`.
 
+## Features
+- **Dynamic Volume Creation**: Create Docker volumes with a specified size.
+- **Automatic Cleanup**: Automatically removes the `lost+found` directory upon volume creation.
+- **Volume Management**: Delete and list volumes.
+- **Volume Statistics**: Get detailed statistics for each volume.
+- **Web-based File Access**: Generate temporary URLs for accessing volume data through File Browser.
+
 ## Endpoints
 
 ### Health Check
@@ -22,7 +29,7 @@ The service listens on port `8203`.
 ### Create Volume
 - **Endpoint:** `/create-volume`
 - **Method:** `POST`
-- **Description:** Creates a new Docker volume.
+- **Description:** Creates a new Docker volume. The `lost+found` directory is automatically removed upon creation.
 - **Payload:**
   ```json
   {
