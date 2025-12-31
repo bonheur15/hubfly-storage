@@ -168,3 +168,10 @@ curl -X POST -H "Content-Type: application/json" -d '{
 ```bash
 curl http://localhost:8203/health
 ```
+
+### Create URL Volume
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{
+  "name": "my-test-volume"
+}' http://localhost:8203/url-volume/create
+```
