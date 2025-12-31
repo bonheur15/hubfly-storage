@@ -16,7 +16,7 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-	baseDir := "./docker"
+	baseDir := "./docker/volumes"
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		log.Fatalf("Failed to create base directory: %v", err)
 	}
