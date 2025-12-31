@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
 
 	"hubfly-storage/handlers"
 
@@ -17,9 +16,6 @@ func main() {
 	}
 
 	baseDir := "./docker-volumes"
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
-		log.Fatalf("Failed to create base directory: %v", err)
-	}
 
 	http.HandleFunc("/create-volume", handlers.CreateVolumeHandler(baseDir))
 	http.HandleFunc("/delete-volume", handlers.DeleteVolumeHandler(baseDir))
