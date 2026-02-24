@@ -11,6 +11,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 )
 
 // Structs for File Browser API
@@ -24,27 +26,27 @@ type LoginResponse struct {
 }
 
 type CreateUserRequest struct {
-	What  string     `json:"what"`
-	Which []string   `json:"which"`
-	Data  UserData   `json:"data"`
+	What  string   `json:"what"`
+	Which []string `json:"which"`
+	Data  UserData `json:"data"`
 }
 
 type UserData struct {
-	Scope        string      `json:"scope"`
-	Locale       string      `json:"locale"`
-	ViewMode     string      `json:"viewMode"`
-	SingleClick  bool        `json:"singleClick"`
-	Sorting      Sorting     `json:"sorting"`
-	Perm         Permissions `json:"perm"`
-	Commands     []string    `json:"commands"`
-	HideDotfiles bool        `json:"hideDotfiles"`
-	DateFormat   bool        `json:"dateFormat"`
-	AceEditorTheme string    `json:"aceEditorTheme"`
-	Username     string      `json:"username"`
-	Password     string      `json:"password"`
-	Rules        []Rule      `json:"rules"`
-	LockPassword bool        `json:"lockPassword"`
-	ID           int         `json:"id"`
+	Scope          string      `json:"scope"`
+	Locale         string      `json:"locale"`
+	ViewMode       string      `json:"viewMode"`
+	SingleClick    bool        `json:"singleClick"`
+	Sorting        Sorting     `json:"sorting"`
+	Perm           Permissions `json:"perm"`
+	Commands       []string    `json:"commands"`
+	HideDotfiles   bool        `json:"hideDotfiles"`
+	DateFormat     bool        `json:"dateFormat"`
+	AceEditorTheme string      `json:"aceEditorTheme"`
+	Username       string      `json:"username"`
+	Password       string      `json:"password"`
+	Rules          []Rule      `json:"rules"`
+	LockPassword   bool        `json:"lockPassword"`
+	ID             int         `json:"id"`
 }
 
 type Sorting struct {
@@ -72,7 +74,6 @@ type GetTokenResponse struct {
 type URLVolumeCreateRequest struct {
 	Name string `json:"name"`
 }
-
 
 type DockerVolumePayload struct {
 	Name       string            `json:"Name"`
@@ -102,7 +103,26 @@ func CreateVolumeHandler(baseDir string) http.HandlerFunc {
 			size = "1G"
 		}
 
-		volName, err := volume.CreateVolume(payload.Name, size, baseDir, payload.Labels)
+		enableEncryption, err := parseOptionalBool(payload.DriverOpts["encryption"])
+		if err != nil {
+			handleError(w, fmt.Sprintf("Invalid encryption value: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		optimization := payload.DriverOpts["optimization"]
+		if optimization == "" {
+			optimization = "standard"
+		}
+
+		config := volume.VolumeConfig{
+			Size:             size,
+			EnableEncryption: enableEncryption,
+			EncryptionKey:    payload.DriverOpts["encryption_key"],
+			Optimization:     optimization,
+			Labels:           payload.Labels,
+		}
+
+		volName, err := volume.CreateVolume(payload.Name, baseDir, config)
 		if err != nil {
 			handleError(w, fmt.Sprintf("Failed to create volume: %v", err), http.StatusInternalServerError)
 			return
@@ -116,6 +136,19 @@ func CreateVolumeHandler(baseDir string) http.HandlerFunc {
 			"name":   volName,
 		})
 	}
+}
+
+func parseOptionalBool(raw string) (bool, error) {
+	if strings.TrimSpace(raw) == "" {
+		return false, nil
+	}
+
+	parsed, err := strconv.ParseBool(strings.TrimSpace(raw))
+	if err != nil {
+		return false, fmt.Errorf("expected one of true/false/1/0")
+	}
+
+	return parsed, nil
 }
 
 func DeleteVolumeHandler(baseDir string) http.HandlerFunc {
@@ -267,20 +300,18 @@ func loginFileBrowser(baseURL, username, password string) (string, error) {
 		bodyBytes, _ := ioutil.ReadAll(resp.Body)
 		return "", fmt.Errorf("login failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
-    // Read the response body
-    bodyBytes, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        return "", fmt.Errorf("failed to read login response body: %v", err)
-    }
+	// Read the response body
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read login response body: %v", err)
+	}
 
 	var loginResp LoginResponse
 	// The token is directly in the body, not in a JSON object
 	loginResp.Token = string(bodyBytes)
 
-
 	return loginResp.Token, nil
 }
-
 
 func createTempUser(baseURL, adminToken, volumeName, username, password string) error {
 	usersURL := baseURL + "/api/users"

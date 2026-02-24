@@ -9,6 +9,22 @@ import (
 	"strings"
 )
 
+type OptimizationMode string
+
+const (
+	OptimizationStandard        OptimizationMode = "standard"
+	OptimizationHighPerformance OptimizationMode = "high_performance"
+	OptimizationBalanced        OptimizationMode = "balanced"
+)
+
+type VolumeConfig struct {
+	Size             string
+	EnableEncryption bool
+	EncryptionKey    string
+	Optimization     string
+	Labels           map[string]string
+}
+
 type VolumeStats struct {
 	Name      string `json:"name"`
 	Size      string `json:"size"`
@@ -28,6 +44,17 @@ func runCommand(name string, args ...string) error {
 	return nil
 }
 
+func runCommandWithInput(input, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = strings.NewReader(input)
+	output, err := cmd.CombinedOutput()
+	log.Printf("Command: %s %v\nOutput: %s", name, args, output)
+	if err != nil {
+		return fmt.Errorf("%v: %s", err, output)
+	}
+	return nil
+}
+
 func runCommandWithOutput(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	output, err := cmd.CombinedOutput()
@@ -38,26 +65,32 @@ func runCommandWithOutput(name string, args ...string) (string, error) {
 	return string(output), nil
 }
 
-// volumeExists checks if a docker volume with the given name already exists.
 func volumeExists(name string) (bool, error) {
 	output, err := runCommandWithOutput("docker", "volume", "ls", "-q", "-f", "name="+name)
 	if err != nil {
 		return false, fmt.Errorf("failed to check if volume exists: %v", err)
 	}
-	// The output will be the volume name if it exists, or empty if it doesn't.
-	// We trim space and check if the output matches the name.
 	exists := strings.TrimSpace(output) == name
 	return exists, nil
 }
 
-func CreateVolume(name, size, baseDir string, labels map[string]string) (string, error) {
-	// Check if the volume already exists
+func CreateVolume(name, baseDir string, config VolumeConfig) (string, error) {
 	exists, err := volumeExists(name)
 	if err != nil {
 		return "", fmt.Errorf("failed to check for existing volume: %v", err)
 	}
 	if exists {
 		return "", fmt.Errorf("volume '%s' already exists", name)
+	}
+
+	normalizedMode, err := normalizeOptimization(config.Optimization)
+	if err != nil {
+		return "", err
+	}
+
+	encryptionKey, err := resolveEncryptionKey(config)
+	if err != nil {
+		return "", err
 	}
 
 	volumePath := filepath.Join(baseDir, name)
@@ -68,6 +101,7 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 	}
 	imagePath := filepath.Join(volumePath, "volume.img")
 
+	size := config.Size
 	if size == "" {
 		size = "1G"
 	}
@@ -76,25 +110,64 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 		return "", fmt.Errorf("failed to create directory: %v", err)
 	}
 
+	mounted := false
+	encryptedOpened := false
+	dockerRegistered := false
+	success := false
+	defer func() {
+		if success {
+			return
+		}
+		if dockerRegistered {
+			if err := runCommand("docker", "volume", "rm", name); err != nil {
+				log.Printf("rollback warning: failed to remove docker volume %s: %v", name, err)
+			}
+		}
+		if mounted {
+			if err := runCommand("sudo", "umount", dataPath); err != nil {
+				log.Printf("rollback warning: failed to unmount %s: %v", dataPath, err)
+			}
+		}
+		if encryptedOpened {
+			if err := closeEncryptionMapping(name); err != nil {
+				log.Printf("rollback warning: failed to close encryption mapping %s: %v", name, err)
+			}
+		}
+		if err := os.RemoveAll(volumePath); err != nil {
+			log.Printf("rollback warning: failed to remove volume path %s: %v", volumePath, err)
+		}
+	}()
+
 	log.Printf("Allocating %s image file at %s", size, imagePath)
 	if err := runCommand("sudo", "fallocate", "-l", size, imagePath); err != nil {
 		return "", fmt.Errorf("fallocate failed: %v", err)
 	}
 
-	log.Printf("Formatting %s as ext4", imagePath)
-	if err := runCommand("sudo", "mkfs.ext4", imagePath); err != nil {
+	mountSource := imagePath
+	if config.EnableEncryption {
+		mapperName := mapperNameForVolume(name)
+		if err := setupEncryptedDevice(imagePath, mapperName, encryptionKey); err != nil {
+			return "", err
+		}
+		mountSource = mapperPath(mapperName)
+		encryptedOpened = true
+	}
+
+	log.Printf("Formatting %s as ext4", mountSource)
+	if err := runCommand("sudo", "mkfs.ext4", mountSource); err != nil {
 		return "", fmt.Errorf("mkfs.ext4 failed: %v", err)
 	}
 
-	log.Printf("Mounting volume image at %s", dataPath)
-	if err := runCommand("sudo", "mount", "-o", "loop", imagePath, dataPath); err != nil {
+	mountOpts := mountOptionsForMode(normalizedMode)
+	log.Printf("Mounting volume image at %s with options: %s", dataPath, mountOpts)
+	if err := runCommand("sudo", "mount", "-o", mountOpts, mountSource, dataPath); err != nil {
 		return "", fmt.Errorf("mount failed: %v", err)
 	}
+	mounted = true
 
 	lostAndFoundPath := filepath.Join(dataPath, "lost+found")
 	log.Printf("Removing lost+found directory: %s", lostAndFoundPath)
 	if err := runCommand("sudo", "rm", "-rf", lostAndFoundPath); err != nil {
-		// Log as a warning instead of returning an error
 		log.Printf("warning: failed to remove lost+found: %v", err)
 	}
 
@@ -108,9 +181,9 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 		if err := runCommand("sudo", "chown", "-R", fmt.Sprintf("%s:%s", sudoUser, sudoUser), dataPath); err != nil {
 			return "", fmt.Errorf("chown failed: %v", err)
 		}
-	} // for dev
-	log.Printf("Registering docker volume: %s", name)
+	}
 
+	log.Printf("Registering docker volume: %s", name)
 	dockerArgs := []string{
 		"docker", "volume", "create",
 		"--name", name,
@@ -119,14 +192,16 @@ func CreateVolume(name, size, baseDir string, labels map[string]string) (string,
 		"--opt", "o=bind",
 	}
 
-	for key, value := range labels {
+	for key, value := range config.Labels {
 		dockerArgs = append(dockerArgs, "--label", fmt.Sprintf("%s=%s", key, value))
 	}
 
 	if err := runCommand(dockerArgs[0], dockerArgs[1:]...); err != nil {
 		return "", fmt.Errorf("docker volume create failed: %v", err)
 	}
+	dockerRegistered = true
 
+	success = true
 	return name, nil
 }
 
@@ -136,8 +211,11 @@ func DeleteVolume(name, baseDir string) error {
 
 	log.Printf("Unmounting volume at %s", dataPath)
 	if err := runCommand("sudo", "umount", dataPath); err != nil {
-		// Log the error but continue, as the volume might not be mounted
 		log.Printf("unmount failed (might be acceptable if not mounted): %v", err)
+	}
+
+	if err := closeEncryptionMapping(name); err != nil {
+		log.Printf("warning: failed to close encryption mapping for %s: %v", name, err)
 	}
 
 	log.Printf("Removing docker volume: %s", name)
@@ -151,6 +229,94 @@ func DeleteVolume(name, baseDir string) error {
 	}
 
 	return nil
+}
+
+func setupEncryptedDevice(imagePath, mapperName, key string) error {
+	log.Printf("Creating LUKS2 encrypted device for %s", imagePath)
+	if err := runCommandWithInput(key+"\n", "sudo", "cryptsetup", "-q", "luksFormat", "--type", "luks2", imagePath, "-"); err != nil {
+		return fmt.Errorf("cryptsetup luksFormat failed: %v", err)
+	}
+
+	log.Printf("Opening encrypted device mapping %s", mapperName)
+	if err := runCommandWithInput(key+"\n", "sudo", "cryptsetup", "open", imagePath, mapperName, "-"); err != nil {
+		return fmt.Errorf("cryptsetup open failed: %v", err)
+	}
+
+	return nil
+}
+
+func closeEncryptionMapping(volumeName string) error {
+	mapperName := mapperNameForVolume(volumeName)
+	if _, err := os.Stat(mapperPath(mapperName)); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	if err := runCommand("sudo", "cryptsetup", "close", mapperName); err != nil {
+		return fmt.Errorf("cryptsetup close failed: %v", err)
+	}
+	return nil
+}
+
+func mapperNameForVolume(volumeName string) string {
+	cleaned := strings.ToLower(strings.TrimSpace(volumeName))
+	cleaned = strings.ReplaceAll(cleaned, " ", "-")
+	cleaned = strings.ReplaceAll(cleaned, "/", "-")
+	return "hubfly-" + cleaned
+}
+
+func mapperPath(mapperName string) string {
+	return filepath.Join("/dev/mapper", mapperName)
+}
+
+func resolveEncryptionKey(config VolumeConfig) (string, error) {
+	if !config.EnableEncryption {
+		return "", nil
+	}
+
+	if strings.TrimSpace(config.EncryptionKey) != "" {
+		return config.EncryptionKey, nil
+	}
+
+	envKey := os.Getenv("VOLUME_ENCRYPTION_KEY")
+	if strings.TrimSpace(envKey) != "" {
+		return envKey, nil
+	}
+
+	return "", fmt.Errorf("encryption requested but no key provided; set DriverOpts.encryption_key or VOLUME_ENCRYPTION_KEY")
+}
+
+func normalizeOptimization(raw string) (OptimizationMode, error) {
+	modeRaw := strings.ToLower(strings.TrimSpace(raw))
+	modeRaw = strings.ReplaceAll(modeRaw, "-", "_")
+	modeRaw = strings.ReplaceAll(modeRaw, " ", "_")
+	if modeRaw == "high_perfomance" {
+		modeRaw = string(OptimizationHighPerformance)
+	}
+	mode := OptimizationMode(modeRaw)
+	if mode == "" {
+		return OptimizationStandard, nil
+	}
+
+	switch mode {
+	case OptimizationStandard, OptimizationHighPerformance, OptimizationBalanced:
+		return mode, nil
+	default:
+		return "", fmt.Errorf("unsupported optimization mode '%s'; expected one of: standard, high_performance, balanced", raw)
+	}
+}
+
+func mountOptionsForMode(mode OptimizationMode) string {
+	switch mode {
+	case OptimizationHighPerformance:
+		return "noatime,nodiratime,commit=60,data=writeback"
+	case OptimizationBalanced:
+		return "relatime,commit=30"
+	default:
+		return "defaults"
+	}
 }
 
 func GetVolumeStats(name, baseDir string) (*VolumeStats, error) {
@@ -207,7 +373,6 @@ func GetAllVolumes(baseDir string) ([]*VolumeStats, error) {
 		if file.IsDir() {
 			stats, err := GetVolumeStats(file.Name(), baseDir)
 			if err != nil {
-				// Log the error but continue, as some directories might not be volumes
 				log.Printf("failed to get stats for %s: %v", file.Name(), err)
 				continue
 			}

@@ -35,10 +35,18 @@ The service listens on port `8203`.
   {
     "Name": "my-test-volume",
     "DriverOpts": {
-      "size": "5G"
+      "size": "5G",
+      "encryption": "true",
+      "encryption_key": "my-strong-passphrase",
+      "optimization": "balanced"
     }
   }
   ```
+- **Optional `DriverOpts` fields:**
+  - `size`: volume size (default: `1G`)
+  - `encryption`: `true`/`false` (default: `false`)
+  - `encryption_key`: encryption passphrase (required when `encryption=true` if `VOLUME_ENCRYPTION_KEY` is not set)
+  - `optimization`: one of `standard`, `high_performance`, `balanced` (default: `standard`)
 - **Success Response:**
     - **Code:** 200 OK
     - **Content:** `{"status": "success", "name": "my-test-volume"}`
@@ -121,7 +129,7 @@ The service listens on port `8203`.
 ### Dependencies
 - Go 1.17 or later
 - Docker
-- `fallocate`, `mkfs.ext4`, `mount`, `umount`, `df` command-line utilities
+- `fallocate`, `mkfs.ext4`, `mount`, `umount`, `df`, `cryptsetup` command-line utilities
 - `sudo` access is required for the service to execute system commands.
 
 ### Running the application
@@ -140,7 +148,10 @@ The server will start and listen on port `8203`.
 curl -X POST -H "Content-Type: application/json" -d '{
   "Name": "my-test-volume",
   "DriverOpts": {
-    "size": "5G"
+    "size": "5G",
+    "encryption": "true",
+    "encryption_key": "my-strong-passphrase",
+    "optimization": "high_performance"
   }
 }' http://localhost:8203/create-volume
 ```
