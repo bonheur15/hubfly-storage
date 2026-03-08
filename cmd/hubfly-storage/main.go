@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +11,14 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var version = "dev"
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Println(version)
+		return
+	}
+
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("No .env file found")
