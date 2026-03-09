@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -20,6 +21,9 @@ func main() {
 		return
 	}
 
+	fileBrowserBinaryPath := flag.String("filebrowser-binary", "", "optional path to the FileBrowser binary")
+	flag.Parse()
+
 	envPath := ".env"
 	if err := filebrowser.EnsureEnvFile(envPath); err != nil {
 		log.Printf("Failed ensuring .env file: %v", err)
@@ -30,7 +34,14 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-	go filebrowser.BootstrapAdminPassword(envPath)
+	resolvedFileBrowserBinaryPath := filebrowser.ResolveBinaryPath(*fileBrowserBinaryPath)
+	if resolvedFileBrowserBinaryPath == "" {
+		log.Printf("FileBrowser binary unavailable; checked optional path and default fallback")
+	} else {
+		log.Printf("Using FileBrowser binary at %s", resolvedFileBrowserBinaryPath)
+	}
+
+	go filebrowser.BootstrapAdminPassword(envPath, *fileBrowserBinaryPath)
 
 	baseDir := "./docker/volumes"
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
@@ -41,7 +52,7 @@ func main() {
 	http.HandleFunc("/delete-volume", handlers.DeleteVolumeHandler(baseDir))
 	http.HandleFunc("/resize-volume", handlers.ResizeVolumeHandler(baseDir))
 	http.HandleFunc("/health", handlers.HealthCheckHandler(version, func() handlers.FileBrowserHealth {
-		fbHealth := filebrowser.Probe(os.Getenv("FILEBROWSER_URL"))
+		fbHealth := filebrowser.Probe(os.Getenv("FILEBROWSER_URL"), *fileBrowserBinaryPath)
 		return handlers.FileBrowserHealth{
 			Running: fbHealth.Running,
 			Version: fbHealth.Version,

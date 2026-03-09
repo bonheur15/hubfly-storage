@@ -19,6 +19,7 @@ import (
 const (
 	defaultFileBrowserURL  = "http://localhost:10001"
 	defaultFileBrowserUser = "admin"
+	defaultBinaryPath      = "/hubfly-tool-manager/tools/filebrowser/filebrowser"
 )
 
 type Health struct {
@@ -53,7 +54,7 @@ func EnsureEnvFile(path string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-func BootstrapAdminPassword(envPath string) {
+func BootstrapAdminPassword(envPath, requestedBinaryPath string) {
 	adminPass := strings.TrimSpace(os.Getenv("FILEBROWSER_ADMIN_PASS"))
 	if adminPass != "" {
 		return
@@ -69,8 +70,9 @@ func BootstrapAdminPassword(envPath string) {
 		return
 	}
 
-	if _, err := exec.LookPath("filebrowser"); err != nil {
-		log.Printf("FileBrowser binary not found in PATH; skipping admin password bootstrap: %v", err)
+	binaryPath := resolveBinaryPath(requestedBinaryPath)
+	if binaryPath == "" {
+		log.Printf("FileBrowser binary not found at requested/default locations; skipping admin password bootstrap")
 		return
 	}
 
@@ -80,7 +82,7 @@ func BootstrapAdminPassword(envPath string) {
 		return
 	}
 
-	pm2Name, pm2Managed, pm2Online := detectPM2FileBrowserProcess()
+	pm2Name, pm2Managed, pm2Online := detectPM2FileBrowserProcess(binaryPath)
 	if pm2Managed && pm2Online {
 		if err := runPM2Command("stop", pm2Name); err != nil {
 			log.Printf("Failed to stop PM2 FileBrowser process %q: %v", pm2Name, err)
@@ -92,7 +94,7 @@ func BootstrapAdminPassword(envPath string) {
 		}()
 	}
 
-	if err := runFileBrowserUpdatePassword(newPassword); err != nil {
+	if err := runFileBrowserUpdatePassword(binaryPath, newPassword); err != nil {
 		log.Printf("Failed to update FileBrowser admin password: %v", err)
 		return
 	}
@@ -106,7 +108,7 @@ func BootstrapAdminPassword(envPath string) {
 	log.Printf("FileBrowser admin password was generated and persisted")
 }
 
-func Probe(url string) Health {
+func Probe(url, requestedBinaryPath string) Health {
 	if strings.TrimSpace(url) == "" {
 		url = defaultFileBrowserURL
 	}
@@ -116,11 +118,11 @@ func Probe(url string) Health {
 		return health
 	}
 
-	health.Version = detectFileBrowserVersion()
+	health.Version = detectFileBrowserVersion(resolveBinaryPath(requestedBinaryPath))
 	return health
 }
 
-func detectPM2FileBrowserProcess() (name string, managed bool, online bool) {
+func detectPM2FileBrowserProcess(binaryPath string) (name string, managed bool, online bool) {
 	if _, err := exec.LookPath("pm2"); err != nil {
 		return "", false, false
 	}
@@ -139,7 +141,7 @@ func detectPM2FileBrowserProcess() (name string, managed bool, online bool) {
 	}
 
 	for _, proc := range processes {
-		if looksLikeFileBrowser(proc) {
+		if looksLikeFileBrowser(proc, binaryPath) {
 			return proc.Name, true, strings.EqualFold(proc.PM2Env.Status, "online")
 		}
 	}
@@ -147,15 +149,22 @@ func detectPM2FileBrowserProcess() (name string, managed bool, online bool) {
 	return "", false, false
 }
 
-func looksLikeFileBrowser(proc pm2Process) bool {
+func looksLikeFileBrowser(proc pm2Process, binaryPath string) bool {
 	joined := strings.ToLower(strings.Join(proc.PM2Env.Args, " "))
 	execPath := strings.ToLower(proc.PM2Env.PmExecPath)
 	name := strings.ToLower(proc.Name)
+	resolvedBinaryPath := strings.ToLower(strings.TrimSpace(binaryPath))
 
 	if strings.Contains(name, "filebrowser") {
 		return true
 	}
+	if resolvedBinaryPath != "" && execPath == resolvedBinaryPath {
+		return true
+	}
 	if strings.Contains(execPath, "filebrowser") {
+		return true
+	}
+	if resolvedBinaryPath != "" && strings.Contains(joined, resolvedBinaryPath) {
 		return true
 	}
 	return strings.Contains(joined, "filebrowser")
@@ -176,11 +185,11 @@ func runPM2Command(action, processName string) error {
 	return nil
 }
 
-func runFileBrowserUpdatePassword(password string) error {
+func runFileBrowserUpdatePassword(binaryPath, password string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	output, err := exec.CommandContext(ctx, "filebrowser", "users", "update", "admin", "-p", password).CombinedOutput()
+	output, err := exec.CommandContext(ctx, binaryPath, "users", "update", "admin", "-p", password).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("filebrowser users update admin failed: %v: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -242,20 +251,41 @@ func isFileBrowserRunning(baseURL string) bool {
 	return resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices
 }
 
-func detectFileBrowserVersion() string {
-	if _, err := exec.LookPath("filebrowser"); err != nil {
+func detectFileBrowserVersion(binaryPath string) string {
+	if strings.TrimSpace(binaryPath) == "" {
 		return ""
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(ctx, "filebrowser", "version").CombinedOutput()
+	out, err := exec.CommandContext(ctx, binaryPath, "version").CombinedOutput()
 	if err != nil {
 		return ""
 	}
 
 	return strings.TrimSpace(string(out))
+}
+
+func ResolveBinaryPath(requestedBinaryPath string) string {
+	return resolveBinaryPath(requestedBinaryPath)
+}
+
+func resolveBinaryPath(requestedBinaryPath string) string {
+	for _, candidate := range []string{strings.TrimSpace(requestedBinaryPath), defaultBinaryPath} {
+		if candidate == "" {
+			continue
+		}
+
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() {
+			continue
+		}
+
+		return candidate
+	}
+
+	return ""
 }
 
 func randomStrongHex(bytesLen int) (string, error) {

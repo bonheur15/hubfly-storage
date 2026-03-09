@@ -168,6 +168,14 @@ To build and run the application, you can use the `run.sh` script. This script w
 
 The server will start and listen on port `10007`.
 
+You can optionally pass the FileBrowser binary path at startup:
+
+```bash
+./hubfly-storage --filebrowser-binary /custom/path/to/filebrowser
+```
+
+If `--filebrowser-binary` is not provided or points to a missing file, hubfly-storage falls back to `/hubfly-tool-manager/tools/filebrowser/filebrowser`.
+
 ## Example Usage
 
 ### Create a volume
