@@ -52,8 +52,8 @@ func main() {
 	http.HandleFunc("/dev/volumes", handlers.GetVolumesHandler(baseDir))
 	http.HandleFunc("/url-volume/create", handlers.URLVolumeCreateHandler)
 
-	log.Println("🚀 Server running on port 8203...")
-	if err := http.ListenAndServe(":8203", nil); err != nil {
+	log.Println("🚀 Server running on port 10007...")
+	if err := http.ListenAndServe(":10007", nil); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }

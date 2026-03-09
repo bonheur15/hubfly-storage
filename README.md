@@ -7,7 +7,7 @@ This project is a Go-based web service that provides an HTTP API for dynamically
 - `handlers/`: Contains the HTTP handlers for the different API endpoints.
 - `volume/`: Contains the logic for creating and deleting volumes.
 
-The service listens on port `8203`.
+The service listens on port `10007`.
 
 ## Features
 - **Dynamic Volume Creation**: Create Docker volumes with a specified size.
@@ -166,7 +166,7 @@ To build and run the application, you can use the `run.sh` script. This script w
 ./run.sh
 ```
 
-The server will start and listen on port `8203`.
+The server will start and listen on port `10007`.
 
 ## Example Usage
 
@@ -180,26 +180,26 @@ curl -X POST -H "Content-Type: application/json" -d '{
     "encryption_key": "my-strong-passphrase",
     "optimization": "high_performance"
   }
-}' http://localhost:8203/create-volume
+}' http://localhost:10007/create-volume
 ```
 
 ### Get volume stats
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{
   "Name": "my-test-volume"
-}' http://localhost:8203/volume-stats
+}' http://localhost:10007/volume-stats
 ```
 
 ### Get all volumes
 ```bash
-curl http://localhost:8203/dev/volumes
+curl http://localhost:10007/dev/volumes
 ```
 
 ### Delete a volume
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{
   "Name": "my-test-volume"
-}' http://localhost:8203/delete-volume
+}' http://localhost:10007/delete-volume
 ```
 
 ### Resize a volume (scale up only)
@@ -209,17 +209,17 @@ curl -X POST -H "Content-Type: application/json" -d '{
   "DriverOpts": {
     "size": "10G"
   }
-}' http://localhost:8203/resize-volume
+}' http://localhost:10007/resize-volume
 ```
 
 ### Check health
 ```bash
-curl http://localhost:8203/health
+curl http://localhost:10007/health
 ```
 
 ### Create URL Volume
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{
   "name": "my-test-volume"
-}' http://localhost:8203/url-volume/create
+}' http://localhost:10007/url-volume/create
 ```
