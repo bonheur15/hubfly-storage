@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -186,10 +187,17 @@ func runPM2Command(action, processName string) error {
 }
 
 func runFileBrowserUpdatePassword(binaryPath, password string) error {
+	databasePath, err := databasePathForBinary(binaryPath)
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	output, err := exec.CommandContext(ctx, binaryPath, "users", "update", "admin", "-p", password).CombinedOutput()
+	cmd := exec.CommandContext(ctx, binaryPath, "--database", databasePath, "users", "update", "admin", "-p", password)
+	cmd.Dir = filepath.Dir(binaryPath)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("filebrowser users update admin failed: %v: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -286,6 +294,26 @@ func resolveBinaryPath(requestedBinaryPath string) string {
 	}
 
 	return ""
+}
+
+func databasePathForBinary(binaryPath string) (string, error) {
+	if strings.TrimSpace(binaryPath) == "" {
+		return "", errors.New("empty filebrowser binary path")
+	}
+
+	databasePath := filepath.Join(filepath.Dir(binaryPath), "filebrowser.db")
+	info, err := os.Stat(databasePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("filebrowser database not found at %s", databasePath)
+		}
+		return "", err
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("filebrowser database path is a directory: %s", databasePath)
+	}
+
+	return databasePath, nil
 }
 
 func randomStrongHex(bytesLen int) (string, error) {
