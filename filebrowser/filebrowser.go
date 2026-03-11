@@ -279,6 +279,47 @@ func ResolveBinaryPath(requestedBinaryPath string) string {
 	return resolveBinaryPath(requestedBinaryPath)
 }
 
+func EnsureVolumeScope(binaryPath, baseDir, volumeName string) (string, error) {
+	if strings.TrimSpace(binaryPath) == "" {
+		return "", errors.New("filebrowser binary path is empty")
+	}
+
+	fileBrowserRoot := filepath.Dir(binaryPath)
+	scopeRoot := filepath.Join(fileBrowserRoot, "hubfly-storage-volumes")
+	if err := os.MkdirAll(scopeRoot, 0755); err != nil {
+		return "", err
+	}
+
+	targetVolumePath, err := filepath.Abs(filepath.Join(baseDir, volumeName))
+	if err != nil {
+		return "", err
+	}
+
+	scopeLinkPath := filepath.Join(scopeRoot, volumeName)
+	info, err := os.Lstat(scopeLinkPath)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink == 0 {
+			return "", fmt.Errorf("filebrowser scope path already exists and is not a symlink: %s", scopeLinkPath)
+		}
+
+		existingTarget, err := os.Readlink(scopeLinkPath)
+		if err != nil {
+			return "", err
+		}
+		if existingTarget != targetVolumePath {
+			return "", fmt.Errorf("filebrowser scope symlink points to %s instead of %s", existingTarget, targetVolumePath)
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	} else {
+		if err := os.Symlink(targetVolumePath, scopeLinkPath); err != nil {
+			return "", err
+		}
+	}
+
+	return "/hubfly-storage-volumes/" + volumeName + "/_data", nil
+}
+
 func resolveBinaryPath(requestedBinaryPath string) string {
 	for _, candidate := range []string{strings.TrimSpace(requestedBinaryPath), defaultBinaryPath} {
 		if candidate == "" {

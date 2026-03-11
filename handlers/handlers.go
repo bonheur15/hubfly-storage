@@ -6,12 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hubfly-storage/filebrowser"
 	"hubfly-storage/volume"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -291,7 +291,7 @@ func GetVolumesHandler(baseDir string) http.HandlerFunc {
 	}
 }
 
-func URLVolumeCreateHandler(baseDir string) http.HandlerFunc {
+func URLVolumeCreateHandler(baseDir, fileBrowserBinaryPath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			handleError(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -316,7 +316,7 @@ func URLVolumeCreateHandler(baseDir string) http.HandlerFunc {
 			return
 		}
 
-		volumeScope, err := resolveVolumeScope(baseDir, req.Name)
+		volumeScope, err := filebrowser.EnsureVolumeScope(fileBrowserBinaryPath, baseDir, req.Name)
 		if err != nil {
 			handleError(w, fmt.Sprintf("Failed to resolve volume scope: %v", err), http.StatusInternalServerError)
 			return
@@ -441,17 +441,6 @@ func createTempUser(baseURL, adminToken, scope, username, password string) error
 
 	return nil
 }
-
-func resolveVolumeScope(baseDir, volumeName string) (string, error) {
-	volumePath := filepath.Join(baseDir, volumeName, "_data")
-	absolutePath, err := filepath.Abs(volumePath)
-	if err != nil {
-		return "", err
-	}
-
-	return absolutePath, nil
-}
-
 func getLoginTokenURL(baseURL, userToken string) (string, error) {
 	tokenURL := baseURL + "/api/login/token"
 	req, err := http.NewRequest("POST", tokenURL, nil)
