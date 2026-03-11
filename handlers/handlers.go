@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -290,58 +291,66 @@ func GetVolumesHandler(baseDir string) http.HandlerFunc {
 	}
 }
 
-func URLVolumeCreateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		handleError(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
+func URLVolumeCreateHandler(baseDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			handleError(w, "Invalid request method", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req URLVolumeCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			handleError(w, fmt.Sprintf("Invalid JSON payload: %v", err), http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+
+		filebrowserURL := os.Getenv("FILEBROWSER_URL")
+		adminUser := os.Getenv("FILEBROWSER_ADMIN_USER")
+		adminPass := os.Getenv("FILEBROWSER_ADMIN_PASS")
+
+		// Step 1: Admin Login
+		adminToken, err := loginFileBrowser(filebrowserURL, adminUser, adminPass)
+		if err != nil {
+			handleError(w, fmt.Sprintf("Failed to login as admin: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		volumeScope, err := resolveVolumeScope(baseDir, req.Name)
+		if err != nil {
+			handleError(w, fmt.Sprintf("Failed to resolve volume scope: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Step 2: Create a temporary user
+		tempUser := "tempuser_" + randomHex(8)
+		tempPass := randomHex(16)
+		err = createTempUser(filebrowserURL, adminToken, volumeScope, tempUser, tempPass)
+		if err != nil {
+			handleError(w, fmt.Sprintf("Failed to create temp user: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Step 3: Login as the temporary user
+		userToken, err := loginFileBrowser(filebrowserURL, tempUser, tempPass)
+		if err != nil {
+			handleError(w, fmt.Sprintf("Failed to login as temp user: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Step 4: Get login token URL
+		tokenURL, err := getLoginTokenURL(filebrowserURL, userToken)
+		if err != nil {
+			handleError(w, fmt.Sprintf("Failed to get login token URL: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		fullURL := filebrowserURL + tokenURL
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"url": fullURL})
 	}
-
-	var req URLVolumeCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		handleError(w, fmt.Sprintf("Invalid JSON payload: %v", err), http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	filebrowserURL := os.Getenv("FILEBROWSER_URL")
-	adminUser := os.Getenv("FILEBROWSER_ADMIN_USER")
-	adminPass := os.Getenv("FILEBROWSER_ADMIN_PASS")
-
-	// Step 1: Admin Login
-	adminToken, err := loginFileBrowser(filebrowserURL, adminUser, adminPass)
-	if err != nil {
-		handleError(w, fmt.Sprintf("Failed to login as admin: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Step 2: Create a temporary user
-	tempUser := "tempuser_" + randomHex(8)
-	tempPass := randomHex(16)
-	err = createTempUser(filebrowserURL, adminToken, req.Name, tempUser, tempPass)
-	if err != nil {
-		handleError(w, fmt.Sprintf("Failed to create temp user: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Step 3: Login as the temporary user
-	userToken, err := loginFileBrowser(filebrowserURL, tempUser, tempPass)
-	if err != nil {
-		handleError(w, fmt.Sprintf("Failed to login as temp user: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Step 4: Get login token URL
-	tokenURL, err := getLoginTokenURL(filebrowserURL, userToken)
-	if err != nil {
-		handleError(w, fmt.Sprintf("Failed to get login token URL: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	fullURL := filebrowserURL + tokenURL
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"url": fullURL})
 }
 
 func loginFileBrowser(baseURL, username, password string) (string, error) {
@@ -375,13 +384,13 @@ func loginFileBrowser(baseURL, username, password string) (string, error) {
 	return loginResp.Token, nil
 }
 
-func createTempUser(baseURL, adminToken, volumeName, username, password string) error {
+func createTempUser(baseURL, adminToken, scope, username, password string) error {
 	usersURL := baseURL + "/api/users"
 	createUserReq := CreateUserRequest{
 		What:  "user",
 		Which: []string{},
 		Data: UserData{
-			Scope:       "/volumes/" + volumeName + "/_data",
+			Scope:       scope,
 			Locale:      "en",
 			ViewMode:    "mosaic",
 			SingleClick: false,
@@ -431,6 +440,16 @@ func createTempUser(baseURL, adminToken, volumeName, username, password string) 
 	}
 
 	return nil
+}
+
+func resolveVolumeScope(baseDir, volumeName string) (string, error) {
+	volumePath := filepath.Join(baseDir, volumeName, "_data")
+	absolutePath, err := filepath.Abs(volumePath)
+	if err != nil {
+		return "", err
+	}
+
+	return absolutePath, nil
 }
 
 func getLoginTokenURL(baseURL, userToken string) (string, error) {

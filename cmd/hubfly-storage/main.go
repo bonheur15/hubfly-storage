@@ -61,7 +61,7 @@ func main() {
 	}))
 	http.HandleFunc("/volume-stats", handlers.GetVolumeStatsHandler(baseDir))
 	http.HandleFunc("/dev/volumes", handlers.GetVolumesHandler(baseDir))
-	http.HandleFunc("/url-volume/create", handlers.URLVolumeCreateHandler)
+	http.HandleFunc("/url-volume/create", handlers.URLVolumeCreateHandler(baseDir))
 
 	log.Println("🚀 Server running on port 10007...")
 	if err := http.ListenAndServe(":10007", nil); err != nil {
