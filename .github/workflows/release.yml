@@ -33,5 +33,3 @@ jobs:
           name: Release ${{ github.ref_name }}
           files: |
             ./hubfly-storage-linux-amd64.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
